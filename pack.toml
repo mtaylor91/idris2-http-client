@@ -1,0 +1,16 @@
+[custom.all.idris2-http-client]
+type = "local"
+path = "."
+ipkg = "idris2-http-client.ipkg"
+test = "test/test.ipkg"
+
+[custom.all.idris2-http-client-test]
+type = "local"
+path = "test"
+ipkg = "test.ipkg"
+
+[custom.all.idris2-http-types]
+type = "github"
+url = "https://github.com/mtaylor91/idris2-http-types"
+commit = "1b8fd5dbf2349e0239a097f46e27becc2052410b"
+ipkg = "idris2-http-types.ipkg"
