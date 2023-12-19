@@ -31,6 +31,33 @@ data ClientError : Type where
   ClientSocketError : SocketError -> ClientError
 
 
+public export
+data Result : Type -> Type -> Type where
+  Ok : a -> Result error a
+  Error : error -> Result error a
+
+public export
+Functor (Result error) where
+  map f (Ok a) = Ok (f a)
+  map _ (Error error) = Error error
+
+public export
+Applicative (Result error) where
+  pure = Ok
+  (<*>) (Ok f) (Ok a) = Ok (f a)
+  (<*>) (Error error) _ = Error error
+  (<*>) _ (Error error) = Error error
+
+public export
+Monad (Result error) where
+  (>>=) (Ok a) f = f a
+  (>>=) (Error error) _ = Error error
+
+
+ClientResult : Type -> Type
+ClientResult = Result ClientError
+
+
 connectionPort : URL -> Port
 connectionPort url =
   case url.port of
@@ -43,30 +70,29 @@ connectionPort url =
       _ => 80
 
 
-newConnection : Address -> IO (Either ClientError Connection)
+newConnection : Address -> IO (ClientResult Connection)
 newConnection addr = do
   Right sock <- socket AF_INET Stream 0
-  | Left err => pure $ Left $ ClientSocketError err
+  | Left err => pure $ Error $ ClientSocketError err
   connectResult <- connect sock (Hostname addr.host) addr.port
   if connectResult /= 0
-    then pure $ Left $ ClientConnectError connectResult
+    then pure $ Error $ ClientConnectError connectResult
     else do
       connection <- newConnection sock
-      pure $ Right connection
+      pure $ Ok connection
 
 
 public export
-request : Connection -> Request ByteString ->
-          IO (Either ClientError (Response Connection))
-request connection req = do
+makeRequest : Connection -> Request ByteString -> IO (ClientResult (Response Connection))
+makeRequest connection req = do
   MkConnectionBuffer _ sock <- readIORef connection
   Right sendResult <- send sock $ http1Request req
-  | Left err => pure $ Left $ ClientSocketError err
+  | Left err => pure $ Error $ ClientSocketError err
   if sendResult /= 0
-    then pure $ Left $ ClientSocketError sendResult
+    then pure $ Error $ ClientSocketError sendResult
     else do
       connection <- newConnection sock
       Right response <- readResponseHeaders connection
-      | Left (ConnectionSocketError err) => pure $ Left $ ClientSocketError err
-      | Left (ConnectionProtocolError err) => pure $ Left $ ClientProtocolError err
-      pure $ Right response
+      | Left (ConnectionSocketError err) => pure $ Error $ ClientSocketError err
+      | Left (ConnectionProtocolError err) => pure $ Error $ ClientProtocolError err
+      pure $ Ok response
